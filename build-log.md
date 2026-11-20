@@ -1,100 +1,73 @@
 # Build log
 
-Sunset Cover Studio is an offline, original poster editor. It builds editorial photo panels, crops a single upload across all panels or assigns several photos, and adds outlined type and adjustable color grading. PNG exports use the selected 1920 × 1080, 1080 × 1350, or 1080 × 1080 canvas.
+## r3 M1: Core rebuild
 
-## Files
+- `app/src/cover.js`: Rebuilt the canvas renderer with eight layouts, edge-to-edge photo fitting inside each cell, top-biased sample portrait framing, five posterized color grades, texture switches, and the full print treatment. The wide photo region spans about 75% of the cover height with the title across its lower edge.
+- `app/src/shots.js`: Defined the Mosaic, Three and Grid defaults with six, three and four crops. All sizes share AFTERGLOW, the same script subtitle, the same tagline and original press and production copy.
+- `app/src/main.js`: Added the six-slot photo bank, caption and crop editing, history, Auto-fill, Spread, Surprise me and PNG export in one or three sizes.
+- `app/index.html` and `app/style.css`: Added the workflow and editor controls and constrained the desktop preview independently of the scrollable tools. Retained the two r1 sample payloads.
+- `app/fonts/fonts-greatvibes.ttf` and `app/fonts/fonts-greatvibes-OFL.txt`: Bundled Great Vibes Regular under SIL OFL 1.1. Existing DejaVu fonts provide the fallback.
+- `verify-m1.cjs`: Added the requested normalized coverage, overlap, pixel geometry, default crop count, cover fit and portrait zone assertions. Sample dimensions come from the embedded WebP headers.
 
-- `app/index.html`, `app/style.css`: three-column editing workspace, layout controls, crop controls, responsive shell and bundled font references.
-- `app/src/cover.js`: canvas composition geometry, slanted panel clipping, image transforms, color treatment, poster lettering and panel hit testing.
-- `app/src/main.js`: editor controls, local image upload and drag-and-drop, per-panel crop and rotation, scene startup and PNG download.
-- `app/src/shots.js`: deterministic landscape, portrait and square sample scenes.
-- `app/samples/`: the two supplied, free-to-use sample photographs.
-- `app/fonts/`: bundled DejaVu display and interface typefaces and their license. Google Fonts downloads were unavailable, so DejaVu was used as the permitted fallback.
-- `main.ts`: copies the app and screenshots and produces the dossier under the selected output directory.
-- `serve.ts`: unchanged static development server.
-- `shots.json`: four browser capture scenes.
-- `screenshots/`: cover, editor, portrait cover and square cover captures.
-- `README.md`: run instructions and the requested badges.
-- `.makefun/owner.json`: entry wallet metadata.
-- `build-log.md`: build and validation record.
+Ran one syntax check for each of the four changed JavaScript files, one `git diff --check`, and one assertion run: all passed. The static network scan found no network references in the app; its broad `ws:` alternative flagged CSS `grid-template-rows:`. The forbidden-copy scan found no app matches, and the new copy had no matches in the Top 20 analysis.
 
-## M1 verification
+M2 still needs the four staged photos, their credits, and a cover-fit and motel sign check across all formats. M3 still needs the README update and polish. Browser visual review, including headroom, title overlap, editor fit at 1280 × 720 and interactive export behavior, remains pending. No captures, commits or submission were made.
 
-Top 20 references were visually inspected before implementation. No script font is installed (`fc-list | grep -i script` returned no licensed script face); the subtitle therefore uses italic bold serif with neon glow as an honest fallback. Canvas grading uses standard `ctx.filter`-free overlays and `letterSpacing` only when supported by Chromium.
+## r3 M2: Six-photo bank — implemented, verification incomplete
 
-## Validation
+Changes authored in this session, from the M1 worktree only:
 
-- Two runs of `main.ts` exited successfully; dossiers were byte-identical.
-- Dossier: 803,308 bytes; SHA-256 `85e4cd5ea590f845f6f59ba9288b341119f861ada72e8079a5493adbd8246488`; JSON parsed successfully.
-- All four screenshots are JPEGs within the 256 KiB limit. Sizes and dimensions: 118,747 bytes at 1280 × 720; 103,751 bytes at 1280 × 720; 147,356 bytes at 1024 × 1280; 138,931 bytes at 1024 × 1024.
-- Chromium loaded each of the four scenes and downloaded three full-resolution PNGs. Console errors: 0. External requests: 0. Layout, type and crop controls rendered successfully in the browser.
-- Both main.ts output folders contain app/ and screenshots/. Network-reference scan: 0 HTTP, HTTPS or protocol-relative references; bare imports: 0.
+- `tools/embed-photos.cjs`: Added a reproducible Node conversion/embedding script. Reads the staged JPEGs in skyline, convertible, motorboat, motel order, uses local Python 3/Pillow for RGB WebP conversion (maximum 1440 px, quality 80 with a size fallback), and writes URL-safe unpadded base64 into the existing sample payload. Retains the two original portrait payloads. The initial synchronous subprocess call returned EPERM before writing the payload; switched to an asynchronous subprocess and successfully ran conversion. No network or external writes. Primary motel used; backup not used.
+- `app/index.html`: Expanded the embedded bank from two to six unique photos. Converted sizes: skyline 181,372 B; convertible 83,814 B; motorboat 109,244 B; motel 46,474 B, each below 256 KiB. Added an editor-visible expandable sample attribution area, source titles, supplied creator names, license versions, modification notice and motorboat ShareAlike notice.
+- `app/src/shots.js`: Added per-photo source focal points, including the motel at normalized (.51, .38). Retained M1's format defaults, captions and shared cover copy.
+- `app/src/main.js`: Carries the focal point with each sample and assigned panel, including Spread and Auto-fill. Six samples fill the wide Mosaic in order without repeats. Tall/square retain M1's three/four-panel defaults and therefore show the first three/four unique photos.
+- `app/src/cover.js`: Added clamped source focal positioning to existing cover-fit framing. Existing portrait bias remains the fallback.
+- `verify-m1.cjs`: Preserved M1 assertions and added six-photo uniqueness/size checks, cross-photo cover-fit in default layouts, six-slot Mosaic checks for all formats, conservative motel sign bounds (source x .35–.67, y .16–.61), caption clearance and extra Mosaic portrait checks.
 
+Attribution transcribed from staged SOURCES.md: Wikimedia Commons, “Miami Sunset (45863661094)” — Joe deSousa, CC0 1.0; “Classic convertible car parked on a roadside with a person opening the door at sunset in a countryside setting” — CC BY 2.0; “Motorboat Ryds 435DL and cloud reflections in Sämstad harbor 3” — CC BY-SA 4.0; “Crescent Palms Motel neon sign at night, New Orleans” — Stephen Kennedy, CC BY 2.0. SOURCES.md supplies no creator name for the convertible or motorboat; no names were invented. The staged motel source was viewed in the supplied image. Its complete MOTEL, Crescent PALMS and VACANCY words informed the geometry bounds.
 
-## M2c — 20 November 2026
+Verification (single pass; no assertion rerun or corrective iteration):
 
-Scope: B2/B3, six-panel Mosaic, and M1 defects D1–D4. Read the requested sources and visually inspected all three M1 renders, rank1/rank2/rank5 references, and the four staged photographs. No network, server, browser capture, submission, or screenshot changes in this milestone. Existing unrelated working-tree changes were preserved.
+- `node --check` once for each of the five changed JS/CJS files: all passed.
+- `node verify-m1.cjs` ONCE: FAILED at the additional `tall portrait width` assertion in tall Mosaic. All original M1 assertions completed successfully before this failure, as did the new wide Mosaic cover-fit, sign-zone and portrait checks and tall default-layout cover-fit checks. Full source width is stricter than face visibility; this failure does not prove a clipped face. It remains unresolved and must not be represented as an all-format pass. Execution stopped before tall motel and square extended checks, so those remain unverified.
+- Static network scan of app HTML/CSS/JS/JSON: 0 references (network URL schemes, protocol-relative resources and common network APIs). Bundled font license prose is not a runtime resource reference.
+- `git diff --check`: result recorded by the final check after this log update.
 
-### Embedded sample photo credits
+Handoff: M2 photo bank and attribution implemented, but the extended assertion suite is NOT green. Next authorized pass must investigate the tall Mosaic portrait-width condition and finish all-format motel/coverage verification before declaring NB1 closed. M3 still needs README “four” → eight and final polish. M4 owns browser visual review, capture, commit, kit checks and Goldfish. No screenshots, commits or submission were made; no r2 source was read. Exact session token usage is not exposed by the tools.
 
-The first two `#sample-photos` entries and the existing URL-safe WebP decoder are unchanged. Four staged JPEGs were converted in memory with Pillow (`convert('RGB')`, WebP quality 80), URL-safe base64 encoded without padding, and appended as entries 3–6 in `app/index.html`. No staging files were written. Source titles, licenses and URLs below are transcribed from `.photo-staging/SOURCES.md`; that file does not supply creator names, and none have been invented. Conversions and poster crops/color treatments are modifications; the motorboat and diner photo adaptations retain CC BY-SA 4.0.
+## r3 M2b: Mosaic crop assertion and remaining checks
 
-- `skyline.jpg` — “Miami Sunset (45863661094).jpg” — CC0 — WebP **101,412 bytes**. Source: https://commons.wikimedia.org/wiki/File:Miami_Sunset_(45863661094).jpg
-- `convertible.jpg` — “Classic convertible car parked on a roadside with a person opening the door at sunset in a countryside setting.jpg” — CC BY 2.0 — WebP **52,258 bytes**. Source: https://commons.wikimedia.org/wiki/File:Classic_convertible_car_parked_on_a_roadside_with_a_person_opening_the_door_at_sunset_in_a_countryside_setting.jpg
-- `motorboat.jpg` — “Motorboat Ryds 435DL and cloud reflections in Sämstad harbor 3.jpg” — CC BY-SA 4.0 — WebP **68,606 bytes**. Source: https://commons.wikimedia.org/wiki/File:Motorboat_Ryds_435DL_and_cloud_reflections_in_S%C3%A4mstad_harbor_3.jpg
-- `diner.jpg` — “Neon sign atop the Majestic Diner in Atlanta's Poncey-Highland neighborhood.jpg” — CC BY-SA 4.0 — WebP **100,622 bytes**. Source: https://commons.wikimedia.org/wiki/File:Neon_sign_atop_the_Majestic_Diner_in_Atlanta%27s_Poncey-Highland_neighborhood.jpg
+Reproduced first with `node verify-m1.cjs`: it failed at `verify-m1.cjs:89` with `AssertionError [ERR_ASSERTION]: tall portrait width`, from the Mosaic photo loop. The prior M1/default-layout assertions and wide Mosaic checks passed before that failure.
 
-### Implementation and defect status
+Tall Mosaic geometry diagnostics use the embedded portrait dimensions (photo 0: 544 × 720, aspect 0.755556; photo 1: 720 × 720, aspect 1.000000). Each row reports one tall Mosaic cell against one portrait. `left` is the rendered image's left edge in cell coordinates; centered cover-fit produces equal side overflow. Every row has `top = 0` and rendered height equal to the cell height.
 
-- **B3 implemented:** six embedded photos; Mosaic is the wide default, with one large left hero plus two upper-right and three lower-right cells. Layouts still use a single `cells` array. Normalized cells cover the full panel region without overlap. Tall retains Three (3 crops); square retains Grid (4 crops).
-- Active `state.panels` matches the selected layout cell count. A six-slot backing bank preserves images/crops when changing layouts. Upload distribution supports the active panel count, including six. Format changes select the matching composition and sample crops; six default role/location/time captions follow photo order.
-- **B2 implemented, visual sign-off pending:** removed zoomed-in default crops in all formats. Known sample portraits receive a zero-rotation guard that retains the complete upper 40% source zone with headroom and horizontal margin. New scene samples use contained fitting inside the narrowest slanted-frame width to retain the supplied subject; this intentionally permits dark margins. Guard applies to known samples, not arbitrary uploaded photographs or intentional rotations. The convertible source already excludes the accompanying person's head; no missing source content can be restored.
-- **D1 implemented:** quote/volume occupy a dedicated top band; panel geometry starts at 8.2% of the short side. Panel chips remain at their existing top edge, below the press band.
-- **D2 implemented:** explicitly reset caption baseline to alphabetic (panel chips previously left it at middle), place script and subtitle on separate baselines with a gap, and restore canvas state afterward.
-- **D3 implemented:** `caption()` previously never read `state.tagline`. It now paints an outlined dark ribbon and the actual tagline beneath the subtitle/rule, above the credits footer, with width reserved clear of the seal.
-- **D4 implemented:** reserve a bottom title band outside the photo region and use smaller title sizing in tall/square. Default size is 130, within the existing slider range. Bottom-position titles and portrait face zones are geometrically separated.
+| Cell | Box (w × h), aspect | Portrait | Cover scale | left (px) | Overflow left / right (px) |
+|---|---:|---|---:|---:|---:|
+| 1 | 392.947 × 871.830, 0.450715 | 544 × 720, 0.755556 | 1.210875 | -132.884 | 132.884 / 132.884 |
+| 1 | 392.947 × 871.830, 0.450715 | 720 × 720, 1.000000 | 1.210875 | -239.441 | 239.441 / 239.441 |
+| 2 | 300.024 × 483.948, 0.619951 | 544 × 720, 0.755556 | 0.672150 | -32.813 | 32.813 / 32.813 |
+| 2 | 300.024 × 483.948, 0.619951 | 720 × 720, 1.000000 | 0.672150 | -91.962 | 91.962 / 91.962 |
+| 3 | 310.349 × 483.948, 0.641285 | 544 × 720, 0.755556 | 0.672150 | -27.650 | 27.650 / 27.650 |
+| 3 | 310.349 × 483.948, 0.641285 | 720 × 720, 1.000000 | 0.672150 | -86.800 | 86.800 / 86.800 |
+| 4 | 196.776 × 378.162, 0.520348 | 544 × 720, 0.755556 | 0.525225 | -44.473 | 44.473 / 44.473 |
+| 4 | 196.776 × 378.162, 0.520348 | 720 × 720, 1.000000 | 0.525225 | -90.693 | 90.693 / 90.693 |
+| 5 | 207.101 × 378.162, 0.547651 | 544 × 720, 0.755556 | 0.525225 | -39.311 | 39.311 / 39.311 |
+| 5 | 207.101 × 378.162, 0.547651 | 720 × 720, 1.000000 | 0.525225 | -85.531 | 85.531 / 85.531 |
+| 6 | 196.776 × 378.162, 0.520348 | 544 × 720, 0.755556 | 0.525225 | -44.473 | 44.473 / 44.473 |
+| 6 | 196.776 × 378.162, 0.520348 | 720 × 720, 1.000000 | 0.525225 | -90.693 | 90.693 / 90.693 |
 
-### M2c verification
+**Decision: (a), crop only side pixels.** In all 12 combinations the full source height fits exactly and the top of the rendered image is at 0 px, so the complete upper 40% source band is visible. The centered horizontal source windows in cell 1 are approximately 0.202–0.798 for photo 0 and 0.275–0.725 for photo 1; both contain the measured facial bounds used by the test (photo 0: x .32–.71, y .06–.33; photo 1: x .30–.68, y .12–.41). Each remaining tall cell shows a wider source window. Thus faces remain intact; no tall Mosaic geometry change is warranted. Requiring the entire portrait width in each cell contradicts cover-fit for these aspect ratios. The assertion is replaced by cover-fit on both axes, upper-40% containment, and explicit face-zone containment. Square Mosaic also crops side pixels for its first two assigned portrait photos (cell 1: photo 0 overflows 66.278 px on each side; cell 2: photo 1 overflows 42.595 px on each side), so that format uses the same face-safe invariant rather than the impossible full-width condition. Wide keeps the full-width assertion.
 
-- Exactly one `node --check` per changed JS file: `cover.js` PASS; `main.js` PASS; `shots.js` PASS.
-- Parsed all six embedded entries, validated URL-safe unpadded encoding, decoded and verified each WebP with Pillow. New payload byte counts match the conversion sizes above.
-- Static app HTML/CSS/JS scan: **0 network references**.
-- Node assertions (no browser/server/render capture): every layout's normalized cell area sums to 1 without overlaps; positive geometry across all three formats; default crop count equals layout cell count (6/3/4); both known portraits retain their upper 40% source zone in each default composition; tagline draw call exists and subtitle baseline follows script baseline in all formats. PASS.
-- Files written in this milestone only: `app/index.html`, `app/src/cover.js`, `app/src/main.js`, `app/src/shots.js`, `build-log.md`.
-- **Remaining for coordinator / next milestone:** capture and eye-check wide/tall/square plus editor, confirm face/chin visibility, contained-photo margins, caption readability and title/ribbon spacing; check browser interactions and exports, regenerate approved screenshots/dossier only under separate authorization. D1–D4 and B2 have code/static verification, not final visual closure. Creator attribution metadata is absent from the provided staging manifest; verify creator credits before publication. No submission performed.
+The face bounds are checked for the actual portrait assignments in every default layout and all three Mosaic formats. The all-photo checks continue to cover-fit every photo in every default cell and every one of the six Mosaic cells. Motel sign source bounds remain x .35–.67 and y .16–.61. In Mosaic's motel cell, the tested sign rectangle is x 127.672–244.400, y 67.765–286.630 in wide; x 53.009–143.767, y 60.506–230.679 in tall; and x 62.318–134.458, y 48.094–183.357 in square. Each rectangle is inside its cell. The MOTEL word starts at source y .245, below the caption chip boundary in all three formats; Crescent PALMS and VACANCY are lower in the same visible sign rectangle.
 
-## Fix r2 — 20 November 2026 (B1–B5, M1–M6)
+Changes in this pass: `verify-m1.cjs` replaces the portrait full-width assertion for tall and square Mosaic with upper-40% and explicit face-zone checks, keeps the wide full-width invariant, and adds face checks to the actual default portrait assignments. No renderer, source photos, or app resources changed. No external files were written, and no screenshots, commits, or submissions were made.
 
-Fix round r2 rebuilt the cover against the parent-verified Top-20 analysis (5–7 photo panels, black role chip per panel, giant 2-layer title, press-quote strip + VOL tag, tagline, production credits + barcode + gold seal, heavy sunset/neon grade, faces never cropped). Work ran under recording `01a1f812-50bc-73f0-88a2-9bdbc1ef7086` (see seal step). Codex milestones: M1 (dressing/title/grade), M2c (photos/crops/Mosaic/D1–D4), M3 (editor layouts/flow/fields/toggles), M3b (tall/square fill fix). M2 and M2b were killed by the coordinator with 0 files written (M2: failed patch context + stalled model call; M2b: path misunderstanding + missing /tmp renders). Token use per exec: M1 137,672; M2 87,494 (killed, 0 files); M2b 97,150 (killed, 0 files); M2c 401,546 (over the 200k cap — re-reading the ~95 KB base64 `#sample-photos` JSON and reference images); M3 120,890; M3b 108,135.
+Verification results: `node --check verify-m1.cjs` passed once. The single final `node verify-m1.cjs` run passed: 96 cover-fit cases, six unique photos, all-format Mosaic sign zones, portrait zones and crop counts. The static app scan found zero network references. The final whitespace check follows this log update. M3 remains: update README's “four panel layouts” count to eight and finish the later polish. Browser visual review, capture, commit, kit checks, and Goldfish belong to M4. Exact session token usage is not exposed by the tools.
 
-### What changed
+## r3 M3 — README and caption polish
 
-- **B1 key-art dressing (M1):** press-quote strip + stars, VOL tag, tagline ribbon, production credit line, barcode, gold seal "ORIGINAL COVER ART", bottom slogan band — all rendered on canvas in all three formats.
-- **B2 face-safe crops (M2c/M3b):** default crops keep the full upper 40% source zone of both known portraits (woman, boulevard; man with hat, pier) in wide/tall/square; the title band is geometrically separated from the photo region in tall/square. Coordinator eye-checked all four final renders: both faces whole, chins clear of the title.
-- **B3 six photos (M2c):** four free-license photos added as embedded WebP (see "M2c" credits above — skyline CC0, convertible CC BY 2.0, motorboat/diner CC BY-SA 4.0, with source URLs). Default cover is 6 different panels, no repeated faces. Photos are downloaded once at build time and embedded locally; the finished app has 0 network references.
-- **B4 heavy grade (M1):** five named presets (Vice Sunset, Neon Night, Golden Hour, Comic Ink, Noir Heat) + halftone + grain + strength slider. Default: Vice Sunset, strength 88, halftone and grain on.
-- **B5 two-layer title (M1):** giant gradient block title (~1.5×) + script sub-title with neon glow. No script font exists locally (`fc-list | grep -i script` empty); the script line is italic bold serif + glow as an honest fallback. DejaVu remains the UI font.
-- **M1 panel captions:** role + place + time chip on every panel (6 captions, GTA-style).
-- **M2 layouts (M1/M2c/M3):** 8 layouts — strip, three, grid, single, mosaic (6 panels, default in all formats), hero-right, centre-title, comic. All layouts verified by node assertion: normalized cell area sums to 1, no overlaps, crop count equals cell count.
-- **M3 fast editor flow:** undo/redo (buttons + Ctrl+Z / Ctrl+Shift+Z), Export all 3 sizes, Auto-fill, Spread, numbered header "1 Photos → 2 Layout & grade → 3 Export", Surprise me (randomizes layout + preset + title/tagline, keeps photos).
-- **M4 fields:** editable Tagline, Badge/seal text, Volume, Quote, Quote source — all wired two-way to the render.
-- **M5 toggles:** 8 effect/sticker toggles wired to the render (halftone, grain, speed lines, location tags, badge/seal, volume chip, ribbon, quote strip). Default ON except speed lines.
-- **M6 title position:** Bottom / Over art / Centre selector in the editor, wired to `state.titlePos`.
-- **M3b tall/square fill fix:** M3's move of tall/square to 6-panel Mosaic exposed M2c's `fit:'contain'` on the four new photos, which letterboxed them into small strips with large empty purple bands (worst in tall). M3b switched mosaic tall/square to cover-fit with a top anchor for face panels and adjusted the diner crop. Coordinator eye-checked the re-capture: all six photos fill their cells edge-to-edge in tall and square; wide unchanged.
+- `README.md` now lists all eight layouts, six sample photos, five named grades, eight toggles, and three PNG export sizes. The three existing make.fun badge URLs and bounty destinations are present and were preserved. Their live responses were outside the offline check.
+- `app/src/cover.js` now uses the same horizontal padding on both sides of both text lines for all six caption chips. The chip stays inset from the panel, and the text width is capped inside the padding.
+- The reported “31” was not identifiable at the left edge of the supplied motorboat photo. The current photo renderer has no numeric overlay at that edge. The crop and photo were left as supplied. M4 should check the wide panel for the mark and confirm chip spacing during visual review.
 
-### Honest limits (verified, not fixed)
-
-- The diner source photo itself cuts the "MAJESTIC" sign: the word runs off the right edge of the 960×1200 frame (coordinator viewed the source). No crop can show the full word from this photo; renders show "MAJEST"/"JEST" depending on format crop.
-- The motorboat caption chip ("THE CAPTAIN • MARINA BAY • 9:40 PM") is tight at the right edge of its chip in the wide cover — the time is legible but clipped close to the chip border. Minor cosmetic, left as-is.
-- Creator names are not in the staging manifest (`.photo-staging/SOURCES.md` gives titles, licenses and page URLs only); none were invented. Attribution in this log is by file title + license + source URL, which is what CC BY / CC BY-SA require as a minimum alongside the work itself. The skyline photo's EXIF names Joe deSousa (CC0, no attribution required).
-- The editor preview sits below the fold at 1280×720 viewport height (page scrolls); this is the existing editor layout, not a regression.
-- Four new photos are embedded in `app/index.html` `#sample-photos` (WebP base64, URL-safe, unpadded); `app/samples/` still holds only the two original supplied photographs.
-
-### Fix-r2 validation (coordinator, 20 Nov ~17:45 WIB — supersedes the r1 "Validation" numbers above)
-
-- `node --check` on `app/src/cover.js`, `app/src/main.js`, `app/src/shots.js`: all PASS (verified independently by the coordinator after each milestone).
-- Static scan of `app/index.html`, `app/style.css`, `app/src/cover.js`, `app/src/main.js`, `app/src/shots.js`: **0 network references** (no http/https/protocol-relative URLs).
-- `main.ts` run twice into separate output dirs: dossiers byte-identical, SHA-256 `a8e0e92dcf082109b822ddf13244907475c54f3770475590b12a5fecd20161b9`; output trees identical. Dossier: schema `makefun/dossier/v1`, 4 images, 14 files/directories, 2,164,325 bytes.
-- Screenshots regenerated from the final build (vanilla Chromium via `cdp-shot.mjs`, `serve.ts` on port 8123) and converted to JPEG: `1-cover.jpg` 165,802 bytes (1280×720), `2-editor.jpg` 125,163 bytes (1280×720), `3-cover-portrait.jpg` 229,049 bytes at quality 80 (1024×1280), `4-cover-square.jpg` 217,318 bytes (1024×1024). All four ≤ 256 KiB. (Portrait needed quality 80 — quality 85 was 264,840 bytes, over the limit.)
-- Headless Chromium load of the wide cover scene: 0 page console errors (only dbus environment noise in stderr). All four final renders eye-checked by the coordinator: faces whole in all formats, dressing present, 2-layer title, heavy grade, D1–D4 closed, tall/square panels filled.
-- No submission performed in this round. Recorder seal and commit are recorded in the coordinator's final report, not here.
+The single syntax check of `app/src/cover.js` and `git diff --check` passed. The full assertion suite passed in one run, including 96 cover-fit cases, six unique photos, Mosaic sign zones, portrait zones, and crop counts. The static scan found zero network references in app HTML, CSS, JS, and JSON. Exact session token usage is unavailable.

@@ -1,278 +1,338 @@
 const Cover = (() => {
-  const formats = { wide: [1920, 1080], tall: [1024, 1280], square: [1024, 1024] };
+  const formats = { wide: [1920, 1080], tall: [1080, 1350], square: [1080, 1080] };
   const layouts = {
-    mosaic: { name: 'Mosaic · 6 panels', cells: [[0,0,.4,1],[.4,0,.3,.5],[.7,0,.3,.5],[.4,.5,.2,.5],[.6,.5,.2,.5],[.8,.5,.2,.5]] },
-    strip: { name: 'Hero + strip', cells: [[0,0,.64,1],[.64,0,.36,.49],[.64,.49,.36,.51]] },
-    three: { name: 'Three panels', cells: [[0,0,1,.54],[0,.54,.5,.46],[.5,.54,.5,.46]] },
-    grid: { name: '2 × 2 grid', cells: [[0,0,.5,.5],[.5,0,.5,.5],[0,.5,.5,.5],[.5,.5,.5,.5]] },
-    'hero-right': { name: 'Hero right', cells: [[0,0,.36,.5],[0,.5,.36,.5],[.36,0,.64,1]] },
-    'centre-title': { name: 'Centre title', cells: [[0,0,.5,.3],[.5,0,.5,.3],[0,.3,.25,.4],[.25,.3,.5,.4],[.75,.3,.25,.4],[0,.7,1,.3]] },
-    comic: { name: 'Comic · 6 panels', cells: [[0,0,.55,.5],[.55,0,.45,.3],[.55,.3,.45,.2],[0,.5,.3,.5],[.3,.5,.35,.5],[.65,.5,.35,.5]] },
-    single: { name: 'Single hero', cells: [[0,0,1,1]] }
+    mosaic: { name: 'Mosaic · 6 panels', cells: [
+      [0, 0, .39, 1], [.39, 0, .30, .56], [.69, 0, .31, .56],
+      [.39, .56, .20, .44], [.59, .56, .21, .44], [.80, .56, .20, .44]
+    ] },
+    strip: { name: 'Hero + strip', cells: [[0, 0, .62, 1], [.62, 0, .38, .5], [.62, .5, .38, .5]] },
+    three: { name: 'Three panels', cells: [[0, 0, 1, .68], [0, .68, .5, .32], [.5, .68, .5, .32]] },
+    grid: { name: '2×2 grid', cells: [[0, 0, .5, .5], [.5, 0, .5, .5], [0, .5, .5, .5], [.5, .5, .5, .5]] },
+    right: { name: 'Hero right', cells: [[.39, 0, .61, 1], [0, 0, .39, .5], [0, .5, .39, .5]] },
+    centre: { name: 'Centre title', cells: [[0, 0, .54, 1], [.54, 0, .46, 1]] },
+    comic: { name: 'Comic · 6 panels', cells: [
+      [0, 0, .48, .49], [.48, 0, .26, .49], [.74, 0, .26, .49],
+      [0, .49, .25, .51], [.25, .49, .33, .51], [.58, .49, .42, .51]
+    ] },
+    single: { name: 'Single hero', cells: [[0, 0, 1, 1]] }
   };
-  const clamp = (value, limit) => Math.max(-limit, Math.min(limit, value));
-  const presets = {
-    'Vice Sunset': { warm: .23, pink: .20, blue: .10, contrast: 1.20, saturate: 1.38, hue: -8 },
-    'Neon Night': { warm: .08, pink: .28, blue: .24, contrast: 1.32, saturate: 1.48, hue: 16 },
-    'Golden Hour': { warm: .30, pink: .08, blue: .04, contrast: 1.16, saturate: 1.28, hue: -12 },
-    'Comic Ink': { warm: .10, pink: .13, blue: .08, contrast: 1.50, saturate: 1.12, hue: 0 },
-    'Noir Heat': { warm: .14, pink: .10, blue: .14, contrast: 1.46, saturate: .82, hue: -4 }
+  // Each palette maps shadows, midtones and highlights into a common ink set.
+  const grades = {
+    vice: { name: 'Vice Sunset', tones: [[29, 9, 43], [187, 55, 103], [255, 215, 129]], levels: 10, contrast: 1.36, chroma: .66 },
+    neon: { name: 'Neon Night', tones: [[13, 12, 40], [92, 59, 181], [255, 152, 223]], levels: 9, contrast: 1.48, chroma: .70 },
+    golden: { name: 'Golden Hour', tones: [[48, 19, 41], [214, 105, 49], [255, 234, 162]], levels: 13, contrast: 1.31, chroma: .72 },
+    comic: { name: 'Comic Ink', tones: [[18, 10, 27], [198, 44, 104], [255, 229, 161]], levels: 5, contrast: 1.53, chroma: .49 },
+    noir: { name: 'Noir Heat', tones: [[13, 12, 21], [127, 57, 54], [255, 225, 187]], levels: 8, contrast: 1.62, chroma: .25 }
   };
+  const clamp = (v, low, high) => Math.max(low, Math.min(high, v));
 
   function geometry(state) {
-    const [width,height] = formats[state.format];
-    const unit = Math.min(width,height);
-    // Dedicated press header and bottom title band keep type clear of faces.
-    const panelTop = unit * .082;
-    const panelHeight = height - panelTop - unit * (state.layout === 'centre-title' ? .07 : state.format === 'wide' ? .49 : .43);
-    const lean = unit * (state.layout === 'comic' ? .09 : .045);
-    const inset = unit * .018;
-    const gap = unit * .006;
-    const slant = (x,y) => x === 0 || x === 1 ? x * width : x * width + lean * (.5 - y);
-    return layouts[state.layout].cells.map(([x,y,w,h]) => {
-      const t = panelTop + y*panelHeight + (y === 0 ? 0 : gap);
-      const b = panelTop + (y+h)*panelHeight - (y+h === 1 ? 0 : gap);
-      const l = x === 0 ? inset : gap;
-      const r = x+w === 1 ? inset : gap;
-      const points = [[slant(x,y)+l,t],[slant(x+w,y)-r,t],[slant(x+w,y+h)-r,b],[slant(x,y+h)+l,b]];
-      const xs = points.map(point => point[0]);
-      return { points, left: Math.min(...xs), top:t, width:Math.max(...xs)-Math.min(...xs), height:b-t };
-    });
+    const [w, h] = formats[state.format];
+    const u = Math.min(w, h);
+    const left = u * .022, top = h * .067, gap = u * .0045;
+    const bottom = state.titlePos === 'centre' ? .88 : state.titlePos === 'over' ? .823
+      : state.format === 'wide' ? .70 : .72;
+    return layouts[state.layout].cells.map(([x, y, cw, ch]) => ({
+      left: left + x * (w - 2 * left) + gap,
+      top: top + y * (h * bottom - top) + gap,
+      width: cw * (w - 2 * left) - 2 * gap,
+      height: ch * (h * bottom - top) - 2 * gap
+    }));
   }
 
-  function trace(ctx, points) {
+  function framing(box, panel, iw, ih) {
+    const { width: w, height: h } = box;
+    const angle = panel.angle * Math.PI / 180;
+    const cos = Math.cos(angle), sin = Math.sin(angle);
+    const rw = Math.abs(cos) * w + Math.abs(sin) * h;
+    const rh = Math.abs(sin) * w + Math.abs(cos) * h;
+    const scale = Math.max(rw / iw, rh / ih) * panel.zoom;
+    const excessX = Math.max(0, (iw * scale - rw) / 2);
+    const excessY = Math.max(0, (ih * scale - rh) / 2);
+    const targetX = panel.focus && angle === 0 ? (.5 - panel.focus[0]) * iw * scale : 0;
+    const targetY = panel.focus && angle === 0 ? (.5 - panel.focus[1]) * ih * scale
+      : panel.portrait && angle === 0
+      ? Math.min(excessY, Math.max(0, scale * ih / 2 - h * .46)) : 0;
+    const x = clamp(targetX + panel.x * w * cos + panel.y * h * sin, -excessX, excessX);
+    const y = clamp(targetY + panel.y * h * cos - panel.x * w * sin, -excessY, excessY);
+    return { scale, angle, x: x * cos - y * sin, y: x * sin + y * cos };
+  }
+
+  const graded = new WeakMap();
+  function plate(image, key, strength) {
+    if (!strength) return image;
+    const prior = graded.get(image);
+    if (prior?.key === key && prior.strength === strength) return prior.canvas;
+    const grade = grades[key];
+    const canvas = prior?.canvas || document.createElement('canvas');
+    const factor = Math.min(1, 1600 / Math.max(image.width, image.height));
+    canvas.width = Math.max(1, Math.round(image.width * factor));
+    canvas.height = Math.max(1, Math.round(image.height * factor));
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+    const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const p = pixels.data, mix = strength / 100;
+    for (let i = 0; i < p.length; i += 4) {
+      const lum = .24 * p[i] + .65 * p[i + 1] + .11 * p[i + 2];
+      const t = clamp((lum / 255 - .45) * grade.contrast + .48, 0, 1);
+      const ink = Math.round(t * grade.levels) / grade.levels * 2;
+      const band = Math.min(1, Math.floor(ink)), step = ink - band;
+      for (let c = 0; c < 3; c++) {
+        const a = grade.tones[band][c], b = grade.tones[band + 1][c];
+        const value = a + (b - a) * step + (p[i + c] - lum) * grade.chroma;
+        p[i + c] += (value - p[i + c]) * mix;
+      }
+    }
+    ctx.putImageData(pixels, 0, 0);
+    graded.set(image, { key, strength, canvas });
+    return canvas;
+  }
+
+  function gradient(ctx, y, h, stops) {
+    const fill = ctx.createLinearGradient(0, y, 0, y + h);
+    stops.forEach(([at, color]) => fill.addColorStop(at, color));
+    return fill;
+  }
+  function rect(ctx, color, x, y, w, h) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+  }
+  function type(ctx, text, x, y, size, color, width, align = 'left') {
+    if (!text || width <= 0) return;
+    ctx.font = size + 'px Display, sans-serif';
+    ctx.textAlign = align;
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y, width);
+  }
+
+  let grainTile;
+  function grain(ctx, box) {
+    if (!grainTile) {
+      grainTile = document.createElement('canvas');
+      grainTile.width = grainTile.height = 128;
+      const texture = grainTile.getContext('2d');
+      const noise = texture.createImageData(128, 128);
+      let seed = 507;
+      for (let i = 0; i < noise.data.length; i += 4) {
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        noise.data[i] = noise.data[i + 1] = noise.data[i + 2] = seed & 256 ? 255 : 0;
+        noise.data[i + 3] = (seed >>> 26) + 8;
+      }
+      texture.putImageData(noise, 0, 0);
+    }
+    rect(ctx, ctx.createPattern(grainTile, 'repeat'), box.left, box.top, box.width, box.height);
+  }
+
+  function photo(ctx, box, panel, state, u) {
+    const { left, top, width, height } = box;
+    ctx.save();
     ctx.beginPath();
-    points.forEach(([x,y], index) => index ? ctx.lineTo(x,y) : ctx.moveTo(x,y));
-    ctx.closePath();
-  }
-
-  function photo(ctx, box, panel, state) {
-    if (!panel?.image) return;
-    const {width:w, height:h, left, top} = box;
-    const {width:iw,height:ih} = panel.image;
-    const a = panel.angle * Math.PI / 180;
-    const c = Math.cos(a), s = Math.sin(a);
-    const rw = w * Math.abs(c) + h * Math.abs(s);
-    const rh = h * Math.abs(c) + w * Math.abs(s);
-    let scale = Math.max(rw / iw, rh / ih) * panel.zoom;
-    // Sample fit follows the output format, including Export all without reloading photos.
-    const fillMosaic = state.format !== 'wide' && state.layout === 'mosaic';
-    if (panel.fit === 'contain' && panel.angle === 0 && !fillMosaic) {
-      // Use the narrowest part of the slanted frame, not its bounding box.
-      const innerWidth = Math.min(box.points[1][0],box.points[2][0]) - Math.max(box.points[0][0],box.points[3][0]);
-      scale = Math.min(innerWidth / iw, h / ih) * .96;
-    } else if (panel.faceSafe && panel.angle === 0 && !fillMosaic) {
-      // Preserve the source's upper 40%, with headroom and horizontal safety.
-      scale = Math.min(scale, h * .94 / (ih * .4), w * .90 / iw);
-    }
-    const limitX = Math.max(0,(iw*scale-rw)/2);
-    const limitY = Math.max(0,(ih*scale-rh)/2);
-    const x = panel.x*w, y = panel.y*h;
-    const u = clamp(x*c+y*s, limitX);
-    let v = clamp(y*c-x*s, limitY);
-    if (panel.faceSafe && panel.angle === 0 && ih*scale > h) {
-      v = (ih*scale-h)/2 + h*.025;
-    }
-    ctx.save();
-    ctx.translate(left+w/2+u*c-v*s,top+h/2+u*s+v*c);
-    ctx.rotate(a);
-    ctx.drawImage(panel.image,-iw*scale/2,-ih*scale/2,iw*scale,ih*scale);
-    ctx.restore();
-  }
-
-  function paintPanel(ctx, box, panel, state, index) {
-    const {left,top,width,height,points} = box;
-    ctx.save();
-    trace(ctx,points);
+    ctx.rect(left, top, width, height);
     ctx.clip();
-    ctx.fillStyle = '#482942';
-    ctx.fillRect(left,top,width,height);
-    const grade = presets[state.preset] || presets['Vice Sunset'];
-    const strength = (state.gradeStrength ?? 88) / 100;
-    ctx.filter = 'saturate(' + (1 + (grade.saturate - 1) * strength) + ') contrast(' + (1 + (grade.contrast - 1) * strength) + ') hue-rotate(' + grade.hue * strength + 'deg)';
-    photo(ctx,box,panel,state);
-    ctx.filter = 'none';
-
-    const gel = ctx.createLinearGradient(left,top,left+width,top+height);
-    const amber = 'rgba(255,137,55,' + Math.min(.65,grade.warm*strength + state.warm*.0015) + ')';
-    const pink = 'rgba(241,34,146,' + Math.min(.62,grade.pink*strength + state.neon*.0015) + ')';
-    const blue = 'rgba(51,74,149,' + Math.min(.5,grade.blue*strength + state.neon*.001) + ')';
-    gel.addColorStop(0,index%2 ? blue : amber);
-    gel.addColorStop(.5,'transparent');
-    gel.addColorStop(1,index%2 ? pink : blue);
-    ctx.globalCompositeOperation = 'soft-light';
-    ctx.fillStyle = gel;
-    ctx.fillRect(left,top,width,height);
-    ctx.globalCompositeOperation = 'source-over';
-    const flare = ctx.createLinearGradient(left,top,left+width*.65,top+height);
-    flare.addColorStop(0,index%2 ? blue : amber);
-    flare.addColorStop(.58,'transparent');
-    flare.addColorStop(1,index%2 ? pink : blue);
-    ctx.fillStyle = flare;
-    ctx.fillRect(left,top,width,height);
-    ctx.restore();
-    trace(ctx,points);
-    ctx.lineWidth = state.layout === 'comic' ? Math.min(...formats[state.format])*.009 : 1.5;
-    ctx.strokeStyle = state.layout === 'comic' ? '#100b19' : '#ffd4c05e';
-    ctx.stroke();
-    const label = [panel.role, panel.place && panel.time ? panel.place + ' • ' + panel.time : panel.place || panel.time].filter(Boolean);
-    if (state.locationTags !== false && label.length) {
-      const pad = Math.min(width,height)*.012;
-      const y = top + Math.min(height*.11,Math.min(width,height)*.052);
-      const font = Math.max(11,Math.min(width,height)*.022);
-      ctx.font = 'bold ' + font + 'px Studio';
-      ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#111019dd';
-      const text = label.join('  •  ').toUpperCase();
-      const tw = Math.min(width*.76,ctx.measureText(text).width+pad*2);
-      ctx.fillRect(left+pad,y-font*.68,tw,font*1.38);
-      ctx.fillStyle = '#fff3df';
-      ctx.fillText(text,left+pad*1.7,y,tw-pad*2);
-    }
-  }
-
-  function caption(ctx, width, height, state) {
-    ctx.save();
-    ctx.textBaseline = 'alphabetic';
-    const title = state.title.trim().toUpperCase();
-    const sub = state.subtitle.trim().toUpperCase();
-    if (!title && !sub && !state.script && !state.tagline) { ctx.restore(); return; }
-    const wide = state.format === 'wide';
-    const u = Math.min(width,height);
-    const centred = state.layout === 'centre-title' && state.titlePos === 'centre';
-    const x = centred ? width*.265 : u*.057;
-    const titleY = centred ? u*.082+(height-u*.152)*.46 : state.titlePos === 'centre' ? height*.57 : state.titlePos === 'over' ? height*.70 : height-u*.275;
-    const y = titleY;
-    const max = centred ? width*.47 : wide ? width * .67 : width-2*x;
-    if ((state.titlePos || 'bottom') === 'bottom') {
-      const fade = ctx.createLinearGradient(0,height*.48,0,height);
-      fade.addColorStop(0,'#1a102200'); fade.addColorStop(.58,'#21112877'); fade.addColorStop(1,'#170d20f2');
-      ctx.fillStyle = fade; ctx.fillRect(0,height*.48,width,height*.52);
-    }
-
-    const size = u * (centred ? .09 : wide ? .175 : .115) * Math.min(state.size,wide ? 140 : 130)/100;
-    ctx.font = size + 'px Display';
-    ctx.lineJoin = 'round';
-    if (title) {
+    rect(ctx, '#492638', left, top, width, height);
+    if (panel?.image) {
+      const { image } = panel;
+      const { scale, angle, x, y } = framing(box, panel, image.width, image.height);
+      const w = image.width * scale, h = image.height * scale;
       ctx.save();
-      ctx.translate(x,y);
-      ctx.transform(1,0,-.10,1,0,0);
-      ctx.strokeStyle = '#2e1230';
-      ctx.lineWidth = u*.012;
-      ctx.fillStyle = '#ffb85e';
-      ctx.strokeText(title,0,u*.013,max);
-      ctx.fillText(title,0,u*.013,max);
-      const ink = ctx.createLinearGradient(0,-size*.69,0,0);
-      ink.addColorStop(0,'#fff4d5'); ink.addColorStop(.38,'#ff9a47'); ink.addColorStop(1,'#f044a1');
-      ctx.strokeText(title,0,0,max);
-      ctx.fillStyle = ink;
-      ctx.fillText(title,0,0,max);
+      ctx.translate(left + width / 2 + x, top + height / 2 + y);
+      ctx.rotate(angle);
+      ctx.drawImage(plate(image, state.grade, state.strength), -w / 2, -h / 2, w, h);
       ctx.restore();
     }
-    if (state.script) {
-      ctx.save(); ctx.font = 'italic bold ' + u*.058 + 'px Georgia, serif';
-      ctx.shadowColor = '#ff28b7'; ctx.shadowBlur = u*.018; ctx.fillStyle = '#fff0fa';
-      ctx.fillText(state.script,x+u*.018,y+u*.078,max); ctx.restore();
+    if (state.halftone) {
+      const step = u * .007;
+      ctx.fillStyle = '#190c27';
+      ctx.globalAlpha = .27;
+      ctx.beginPath();
+      for (let y = top + step; y < top + height; y += step) {
+        for (let x = left + step; x < left + width; x += step) {
+          const r = step * (.20 + .10 * (y - top) / height);
+          ctx.moveTo(x + r, y);
+          ctx.arc(x, y, r, 0, Math.PI * 2);
+        }
+      }
+      ctx.fill();
+      ctx.globalAlpha = 1;
     }
-    if (sub) {
-      ctx.font = u*.024 + 'px Studio';
-      ctx.letterSpacing = u*.004 + 'px';
-      ctx.fillStyle = '#fff0db';
-      ctx.fillText(sub,x,y+u*.128,max);
-      ctx.letterSpacing = '0px';
+    if (state.grain) grain(ctx, box);
+    if (state.speed) {
+      ctx.strokeStyle = '#ffe6b354';
+      ctx.lineWidth = u * .002;
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const y = top + height * i / 9;
+        ctx.moveTo(left + width, y);
+        ctx.lineTo(left + width * (.83 + (i % 3) * .045), y * .92 + (top + height / 2) * .08);
+      }
+      ctx.stroke();
     }
-    const rule = ctx.createLinearGradient(x,0,x+max*.72,0);
-    rule.addColorStop(0,state.ink);
-    rule.addColorStop(1,'#ff709500');
-    ctx.fillStyle = rule;
-    ctx.fillRect(x,y+u*(sub ? .142 : .105),max*.72,Math.max(2,u*.002));
-    if (state.ribbon !== false && state.tagline) {
-      const ribbonWidth = Math.min(max,width-u*.4);
-      const ribbonY = y+u*.165;
-      ctx.fillStyle = '#120b1eee';
-      ctx.fillRect(x,ribbonY,ribbonWidth,u*.034);
-      ctx.strokeStyle = state.ink; ctx.lineWidth = u*.0015;
-      ctx.strokeRect(x,ribbonY,ribbonWidth,u*.034);
-      ctx.font = 'bold '+u*.016+'px Studio'; ctx.fillStyle = '#fff0db';
-      ctx.fillText(state.tagline,x+u*.012,ribbonY+u*.023,ribbonWidth-u*.024);
+    ctx.restore();
+    ctx.strokeStyle = '#ffd093';
+    ctx.lineWidth = u * .0014;
+    ctx.strokeRect(left, top, width, height);
+  }
+
+  function chip(ctx, box, caption, u) {
+    const [role, place, time] = caption;
+    if (!(role || place || time)) return;
+    const x = box.left + u * .012, y = box.top + u * .012;
+    const size = u * .015;
+    const padding = u * .016;
+    const line = [place, time].filter(Boolean).join(' / ');
+    ctx.font = size + 'px Display, sans-serif';
+    const width = Math.min(box.width - u * .024,
+      Math.max(ctx.measureText(role).width, ctx.measureText(line).width * .77) + 2 * padding);
+    const height = u * (line ? .043 : .026);
+    rect(ctx, '#140f1b', x, y, width, height);
+    rect(ctx, '#fd609a', x, y, u * .004, height);
+    type(ctx, role, x + padding, y + u * .013, size, '#fff1d4', width - 2 * padding);
+    type(ctx, line, x + padding, y + u * .031, size * .77, '#ffc085', width - 2 * padding);
+  }
+
+  function title(ctx, state, w, h, u) {
+    const wide = state.format === 'wide';
+    const baseline = h * (state.titlePos === 'centre' ? .58 : wide ? .82 : .825);
+    const size = u * (wide ? .25 : .164) * state.size / 100;
+    const scriptSize = u * (wide ? .091 : .079);
+    const scriptOffset = u * (wide ? .055 : .046);
+    const x = w / 2;
+    const fadeTop = baseline - size * .81;
+    const fade = gradient(ctx, fadeTop, h * .946 - fadeTop, [[0, '#160d1a00'], [.56, '#160d1abe'], [1, '#160d1a']]);
+    rect(ctx, fade, u * .022, fadeTop, w - u * .044, h * .946 - fadeTop);
+    ctx.save();
+    ctx.translate(x, baseline);
+    ctx.transform(1, 0, -.12, 1, 0, 0);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    ctx.lineJoin = 'round';
+    ctx.font = size + 'px Display, sans-serif';
+    const word = state.title.trim().toUpperCase(), max = w * .85;
+    if (word) {
+      ctx.lineWidth = u * .023;
+      ctx.strokeStyle = '#100d19';
+      ctx.strokeText(word, 0, u * .014, max);
+      ctx.fillStyle = '#7e164b';
+      ctx.fillText(word, 0, u * .014, max);
+      ctx.lineWidth = u * .016;
+      ctx.strokeText(word, 0, 0, max);
+      ctx.lineWidth = u * .003;
+      ctx.strokeStyle = '#ffe5b4';
+      ctx.strokeText(word, 0, 0, max);
+      ctx.fillStyle = gradient(ctx, -size * .74, size * .74, [
+        [0, '#fff9e5'], [.32, '#ffe197'], [.52, state.ink], [.56, '#aa304b'],
+        [.60, '#ff8d77'], [.72, '#ff497c'], [.76, '#a52568'], [.80, '#f551aa'], [1, '#a440a1']
+      ]);
+      ctx.fillText(word, 0, 0, max);
     }
+    ctx.restore();
+    if (state.subtitle.trim()) {
+      ctx.save();
+      ctx.font = scriptSize + 'px "Great Vibes", Studio, sans-serif';
+      ctx.textBaseline = 'alphabetic';
+      ctx.textAlign = 'center';
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = '#591638';
+      ctx.lineWidth = u * .012;
+      ctx.shadowColor = '#ff498d';
+      ctx.shadowBlur = u * .014;
+      ctx.strokeText(state.subtitle, x, baseline + scriptOffset, w * .76);
+      ctx.fillStyle = '#fff0eb';
+      ctx.fillText(state.subtitle, x, baseline + scriptOffset, w * .76);
+      ctx.restore();
+    }
+    if (state.tagline.trim()) {
+      const y = baseline + u * .092;
+      const width = w * .57;
+      if (state.ribbon) {
+        ctx.fillStyle = '#1a111d';
+        ctx.strokeStyle = '#ffcf87';
+        ctx.lineWidth = u * .0015;
+        ctx.beginPath();
+        ctx.moveTo(x - width / 2 + u * .013, y - u * .014);
+        ctx.lineTo(x + width / 2, y - u * .014);
+        ctx.lineTo(x + width / 2 - u * .013, y + u * .014);
+        ctx.lineTo(x - width / 2, y + u * .014);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      }
+      type(ctx, state.tagline, x, y, u * .014, '#ffe7c3', width - u * .055, 'center');
+    }
+  }
+
+  function seal(ctx, text, x, y, u) {
+    const r = u * .057;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(-.13);
+    ctx.beginPath();
+    for (let i = 0; i < 48; i++) {
+      const a = i * Math.PI / 24, edge = r * (i % 2 ? .89 : 1);
+      ctx.lineTo(Math.cos(a) * edge, Math.sin(a) * edge);
+    }
+    ctx.closePath();
+    ctx.fillStyle = gradient(ctx, -r, 2 * r, [[0, '#fff0a9'], [.52, '#d68931'], [1, '#ffe5a0']]);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(0, 0, r * .73, 0, 2 * Math.PI);
+    ctx.fillStyle = '#201525';
+    ctx.fill();
+    ctx.lineWidth = u * .0015;
+    ctx.strokeStyle = '#ffecaa';
+    ctx.stroke();
+    const words = text.trim().split(/\s+/);
+    const cut = Math.ceil(words.length / 2);
+    type(ctx, words.slice(0, cut).join(' '), 0, -r * .21, u * .010, '#ffe7aa', r * 1.22, 'center');
+    type(ctx, words.slice(cut).join(' '), 0, r * .07, u * .013, '#fff5cf', r * 1.22, 'center');
+    type(ctx, '★ ★ ★', 0, r * .40, u * .009, '#ff90ab', r, 'center');
     ctx.restore();
   }
 
-  function dressing(ctx,w,h,state) {
-    const u=Math.min(w,h), pad=u*.025;
-    ctx.save(); ctx.textBaseline='middle';
-    if (state.quoteStrip !== false) {
-    ctx.font='bold '+u*.019+'px Studio'; ctx.fillStyle='#ffd65a';
-    ctx.fillText('★★★★★',pad,pad+u*.015);
-    ctx.font='bold '+u*.018+'px Studio'; ctx.fillStyle='#fff4e3';
-    ctx.fillText('“'+(state.quote||'')+'”',pad+u*.12,pad+u*.015,w*.57);
-    ctx.font='bold '+u*.011+'px Studio'; ctx.fillStyle='#ffc65a';
-    ctx.fillText('— '+(state.quoteSource||''),pad+u*.12,pad+u*.037,w*.57);
+  function dressing(ctx, state, w, h, u) {
+    const margin = u * .027, pressY = h * .037;
+    rect(ctx, '#261323', margin, h * .017, w - margin * 2, h * .040);
+    if (state.press) {
+      type(ctx, '★★★★★', margin + u * .007, pressY, u * .020, '#ffd278', u * .12);
+      const label = [state.quote && '“' + state.quote + '”', state.source].filter(Boolean).join('  /  ');
+      type(ctx, label, margin + u * .141, pressY, u * .014, '#ffefda',
+        w - margin * 2 - u * (state.volumeChip ? .31 : .16));
     }
-    if (state.volumeChip !== false) {
-    ctx.fillStyle='#ffe36a'; ctx.fillRect(w-u*.15,pad,u*.125,u*.045);
-    ctx.fillStyle='#26152a'; ctx.font='bold '+u*.018+'px Studio'; ctx.textAlign='center'; ctx.fillText(state.volume||'',w-u*.0875,pad+u*.023);
+    if (state.volumeChip && state.volume) {
+      rect(ctx, '#ffd17e', w - margin - u * .128, pressY - u * .014, u * .128, u * .028);
+      type(ctx, state.volume, w - margin - u * .064, pressY, u * .015, '#231521', u * .107, 'center');
     }
-    const footerY=h-u*.07;
-    ctx.fillStyle='#180e20ed'; ctx.fillRect(0,footerY,w,u*.07);
-    ctx.textAlign='left'; ctx.font='bold '+u*.0105+'px Studio'; ctx.fillStyle='#fff0df';
-    ctx.fillText(state.credits||'',pad,footerY+u*.024,w-u*.32);
-    ctx.font='bold '+u*.018+'px Studio'; ctx.fillStyle='#ff8acb'; ctx.fillText('COMING SOON',pad,footerY+u*.052,w*.22);
-    const bx=w-u*.19, by=footerY+u*.012, bh=u*.045;
-    ctx.fillStyle='#fff'; ctx.fillRect(bx,by,u*.17,bh);
-    for(let i=0;i<32;i++){const xx=bx+u*.006+i*u*.0048;ctx.fillStyle=i%3?'#16121a':'#555';ctx.fillRect(xx,by+u*.003,u*(i%5===0?.0022:.0011),bh-u*.013);}
-    ctx.fillStyle='#201527'; ctx.font='bold '+u*.007+'px Studio'; ctx.fillText('0 2113 122920',bx+u*.018,by+bh-u*.006);
-    if (state.badgeSeal !== false) {
-    const cx=w-u*.27,cy=h-u*.115,r=u*.047;
-    ctx.beginPath(); for(let i=0;i<40;i++){const a=i*Math.PI/20,rr=i%2?r*.82:r;const xx=cx+Math.cos(a)*rr, yy=cy+Math.sin(a)*rr;i?ctx.lineTo(xx,yy):ctx.moveTo(xx,yy);}ctx.closePath();ctx.fillStyle='#ffd83f';ctx.fill();ctx.strokeStyle='#fff1a8';ctx.lineWidth=u*.003;ctx.stroke();
-    ctx.fillStyle='#29102b';ctx.textAlign='center';ctx.font='bold '+u*.009+'px Studio';ctx.fillText(state.badge||'',cx,cy,u*.075);
-    }
-    ctx.restore();
-  }
+    if (state.seal && state.badge.trim()) seal(ctx, state.badge, w - margin - u * .064, h * .859, u);
 
-  function texture(ctx,w,h,state) {
-    if(state.halftone){const tile=document.createElement('canvas');tile.width=12;tile.height=12;const p=tile.getContext('2d');p.fillStyle='rgba(18,8,25,.16)';p.beginPath();p.arc(2,2,1.2,0,Math.PI*2);p.fill();ctx.save();ctx.globalCompositeOperation='multiply';ctx.fillStyle=ctx.createPattern(tile,'repeat');ctx.fillRect(0,0,w,h);ctx.restore();}
-    if(state.grain){const c=document.createElement('canvas');c.width=128;c.height=128;const p=c.getContext('2d');const im=p.createImageData(128,128);for(let i=0;i<im.data.length;i+=4){const n=Math.random()*255;im.data[i]=im.data[i+1]=im.data[i+2]=n;im.data[i+3]=state.grainStrength||14;}p.putImageData(im,0,0);ctx.save();ctx.globalAlpha=.18;ctx.globalCompositeOperation='soft-light';ctx.fillStyle=ctx.createPattern(c,'repeat');ctx.fillRect(0,0,w,h);ctx.restore();}
+    const band = h * .943, trim = h * .972;
+    rect(ctx, gradient(ctx, band, trim - band, [[0, '#8d285e'], [1, '#e57651']]), margin, band, w - margin * 2, trim - band);
+    rect(ctx, '#ffd59a', margin, band, w - margin * 2, u * .0015);
+    type(ctx, state.slogan, w / 2, (band + trim) / 2, u * .014, '#fff0ce', w - margin * 4, 'center');
+    type(ctx, state.credit, margin, h * .981, u * .009, '#eec8b8', w - margin * 2 - u * .16);
+    const bx = w - margin - u * .135, by = h * .975, bar = u * .135 / 48;
+    rect(ctx, '#fff0d7', bx, by, u * .135, h * .014);
+    for (let i = 2; i < 46; i++) {
+      if ((i * i + i * 7 + 9) % 19 < 10) rect(ctx, '#170e1b', bx + i * bar, by + h * .002, bar, h * .010);
+    }
+    ctx.strokeStyle = '#e5a672';
+    ctx.lineWidth = u * .0013;
+    ctx.strokeRect(u * .010, u * .010, w - u * .020, h - u * .020);
   }
 
   function render(canvas, state) {
-    const [width,height] = formats[state.format];
-    if (canvas.width !== width) canvas.width = width;
-    if (canvas.height !== height) canvas.height = height;
-    const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#170f20';
-    ctx.fillRect(0,0,width,height);
+    const [w, h] = formats[state.format];
+    if (canvas.width !== w) canvas.width = w;
+    if (canvas.height !== h) canvas.height = h;
+    const ctx = canvas.getContext('2d'), u = Math.min(w, h);
+    rect(ctx, gradient(ctx, 0, h, [[0, '#271426'], [.63, '#4b1b38'], [1, '#160d1a']]), 0, 0, w, h);
     const boxes = geometry(state);
-    boxes.forEach((box,index) => paintPanel(ctx,box,state.panels[index],state,index));
-
-    const vignette = ctx.createRadialGradient(width*.50,height*.42,height*.17,width*.50,height*.42,Math.hypot(width,height)*.51);
-    vignette.addColorStop(0,'transparent');
-    vignette.addColorStop(1,'rgba(23,8,30,' + state.shade*.009 + ')');
-    ctx.fillStyle = vignette;
-    ctx.fillRect(0,0,width,height);
-    if (state.speedLines) {
-      ctx.save(); ctx.strokeStyle='#fff0cf66'; ctx.lineWidth=Math.min(width,height)*.002;
-      for(let i=0;i<24;i++){const a=i*Math.PI/12;ctx.beginPath();ctx.moveTo(width/2+Math.cos(a)*width*.38,height/2+Math.sin(a)*height*.38);ctx.lineTo(width/2+Math.cos(a)*width,height/2+Math.sin(a)*height);ctx.stroke();}ctx.restore();
-    }
-    if (state.layout === 'centre-title' && state.titlePos === 'centre') {trace(ctx,boxes[3].points);ctx.fillStyle='#211128';ctx.fill();}
-    caption(ctx,width,height,state);
-    texture(ctx,width,height,state);
-    dressing(ctx,width,height,state);
-    const inset = Math.min(width,height)*.0095;
-    ctx.strokeStyle = '#e6b4a880';
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(inset,inset,width-2*inset,height-2*inset);
+    boxes.forEach((box, i) => photo(ctx, box, state.bank[i], state, u));
+    if (state.tags) boxes.forEach((box, i) => chip(ctx, box, state.bank[i].caption, u));
+    title(ctx, state, w, h, u);
+    dressing(ctx, state, w, h, u);
     return boxes;
   }
 
-  function hit(canvas, boxes, x, y) {
-    const ctx = canvas.getContext('2d');
-    return boxes.findIndex(box => {
-      trace(ctx,box.points);
-      return ctx.isPointInPath(x,y);
-    });
-  }
-
-  return { render, hit, layouts, formats };
+  return { render, framing, geometry, layouts, formats, grades };
 })();

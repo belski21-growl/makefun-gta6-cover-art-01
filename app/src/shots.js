@@ -1,43 +1,44 @@
 const Scenes = (() => {
   const params = new URLSearchParams(location.search);
-  const mode = params.get('shot');
   const compositions = {
-    wide: { layout: 'mosaic', title: 'Afterglow', subtitle: 'Last light on the coast', ink: '#ffd6ab',
-      crops: [[0, .36, 1], [0, .32, 1], [0, 0, 1], [0, 0, 1], [0, 0, 1], [0, 0, 1]] },
-    tall: { layout: 'mosaic', title: 'Night Tide', subtitle: 'The shoreline after dark', ink: '#f9bddb',
-      crops: [[0, .42, 1], [0, .32, 1], [0, 0, 1], [0, 0, 1], [0, 0, 1], [-.28, -.5, 1]] },
-    square: { layout: 'mosaic', title: 'Heatwave', subtitle: 'High sun / low tide', ink: '#ffe2a1',
-      crops: [[0, .32, 1], [0, .32, 1], [0, 0, 1], [0, 0, 1], [0, 0, 1], [0, -.5, 1]] }
+    wide: { layout: 'mosaic', titlePos: 'over' },
+    tall: { layout: 'three', titlePos: 'bottom' },
+    square: { layout: 'grid', titlePos: 'bottom' }
   };
+  const captions = [
+    ['THE DRIVER', 'SUNDIAL BLVD', '6:42 PM'],
+    ['THE ANGLER', 'COPPER PIER', '5:24 AM'],
+    ['THE LOOKOUT', 'EMBER POINT', '7:51 PM'],
+    ['THE RUNNER', 'LANTERN ROAD', '8:16 PM'],
+    ['THE CAPTAIN', 'GLASSWATER BAY', '9:40 PM'],
+    ['THE MOTEL', 'CRESCENT PALMS', '11:58 PM']
+  ];
+  const copy = {
+    title: 'AFTERGLOW', subtitle: 'When the water burns',
+    tagline: 'LAST LIGHT ON THE COAST', badge: 'ORIGINAL COVER ART',
+    volume: 'VOL. 09', quote: 'THE WHOLE SHORE CATCHES FIRE', source: 'THE BREAKWATER REGISTER',
+    slogan: 'SALT IN THE AIR  /  SPARKS IN THE MIRROR',
+    credit: 'BREAKWATER FRAME CO.  /  A CAST OF YOUR OWN  /  PRINTED IN THE AFTERGLOW'
+  };
+  // Normalized source focal points travel with photos through Spread and Auto-fill.
+  const photoFocus = [null, null, null, null, null, [.51, .38]];
+  const crop = () => ({ x: 0, y: 0, zoom: 1, angle: 0 });
+  const compose = format => ({ format, ...compositions[format] });
+  const crops = format => Cover.layouts[compositions[format].layout].cells.map(crop);
   const requested = params.get('format');
   const format = Object.hasOwn(compositions, requested) ? requested : 'wide';
-  const { crops, ...composition } = compositions[format];
-
-  async function waitForPaint() {
-    if (mode !== 'editor' && mode !== 'cover') return;
-    await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    window.__shotReady = true;
-  }
-
+  const shot = params.get('shot');
   return {
-    coverOnly: mode === 'cover',
-    initial: { ...composition, format, size: 130, neon: 82, warm: 68, shade: 58,
-      script: 'one last summer', titlePos: 'bottom', preset: 'Vice Sunset', gradeStrength: 88,
-      halftone: true, grain: true, speedLines: false, locationTags: true, badgeSeal: true, volumeChip: true, ribbon: true, quoteStrip: true, grainStrength: 14,
-      quote: 'PURE GOLDEN-HOUR MAYHEM', quoteSource: 'THE HARBOR GAZETTE', volume: 'VOL. I',
-      tagline: 'FIVE FRIENDS • ONE COAST • NO WAY BACK',
-      credits: 'A SUNSET PICTURES PRODUCTION — STARRING YOU — SHOT ON YOUR OWN CAMERA — GRADED BY HAND',
-      badge: 'ORIGINAL COVER ART',
-      panelCaptions: [
-        { role: 'THE DRIVER', place: 'OCEAN DRIVE', time: '6:42 PM' },
-        { role: 'THE ANGLER', place: 'PIER 26', time: '7:15 PM' },
-        { role: 'THE LOOKOUT', place: 'SKYLINE', time: '8:03 PM' },
-        { role: 'THE GETAWAY', place: 'COAST ROAD', time: '8:32 PM' },
-        { role: 'THE CAPTAIN', place: 'MARINA BAY', time: '9:40 PM' },
-        { role: 'THE FIXER', place: 'DINER ROW', time: '11:58 PM' }
-      ] },
-    crops,
-    compositions,
-    waitForPaint
+    captions, photoFocus, compose, crop, crops, coverOnly: shot === 'cover',
+    initial: {
+      ...copy, ...compose(format), size: 100, ink: '#ffa54f', grade: 'vice', strength: 90,
+      halftone: true, grain: true, speed: false, tags: true, seal: true,
+      volumeChip: true, ribbon: true, press: true
+    },
+    async waitForPaint() {
+      if (shot !== 'cover' && shot !== 'editor') return;
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      window.__shotReady = true;
+    }
   };
 })();

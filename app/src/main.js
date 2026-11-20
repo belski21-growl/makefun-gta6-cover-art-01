@@ -1,379 +1,320 @@
 (() => {
-  const byId = id => document.getElementById(id);
-  const canvas = byId('cover');
-  const work = byId('work');
-  const picker = byId('files');
-  const neutralCrop = () => ({ x:0, y:0, zoom:1, angle:0 });
-  const panelBank = Array.from({length:Math.max(...Object.values(Cover.layouts).map(layout => layout.cells.length))}, (_, i) => ({image:null,...neutralCrop(), ...(Scenes.initial.panelCaptions?.[i] || {})}));
-  const state = { ...Scenes.initial, panels: panelBank.slice(0,Cover.layouts[Scenes.initial.layout].cells.length) };
-  let sampleMode = false;
-  const controls = ['format','title','subtitle','ink','size','neon','warm','shade','zoom','angle','tagline','badge','volume','quote','quoteSource','titlePos','preset','halftone','grain','speedLines','locationTags','badgeSeal','volumeChip','ribbon','quoteStrip'];
-  let history = [], historyIndex = -1, restoring = false;
-  const imageIds = new WeakMap();
-  let imageId = 0;
-  function snapshot() {
-    const {panels, ...values} = state;
-    return {values:{...values}, panels:panelBank.map(panel => ({...panel})), sampleMode};
+  const $ = id => document.getElementById(id);
+  const canvas = $('cover'), work = $('work'), picker = $('files');
+  const settings = ['format', 'title', 'subtitle', 'tagline', 'badge', 'volume', 'quote', 'source',
+    'titlePos', 'ink', 'size', 'grade', 'strength', 'halftone', 'grain', 'speed', 'tags',
+    'seal', 'volumeChip', 'ribbon', 'press'];
+  const captionInputs = [...document.querySelectorAll('[data-caption]')];
+  const sampleNames = ['Boulevard', 'Copper Pier', 'Ember Point', 'Lantern Road', 'Glasswater Bay', 'Crescent Palms'];
+  let state = { ...Scenes.initial, photos: [], bank: Scenes.captions.map(caption => ({
+    ...Scenes.crop(), image: null, portrait: false, caption: [...caption]
+  })) };
+  let active = 0, boxes = [], frame, drag, request = 0, replaceSlot = null;
+  const undo = [], redo = [];
+  const status = message => { $('status').textContent = message; };
+  const count = () => Cover.layouts[state.layout].cells.length;
+  const snapshot = () => ({ ...state, bank: state.bank.map(panel => ({ ...panel, caption: [...panel.caption] })) });
+  const updateHistory = () => {
+    $('undo').disabled = !undo.length;
+    $('redo').disabled = !redo.length;
+  };
+  function remember(before) {
+    undo.push(before);
+    if (undo.length > 32) undo.shift();
+    redo.length = 0;
+    updateHistory();
   }
-  function signature(value) {
-    return JSON.stringify(value, (key,item) => {
-      if (key !== 'image' || !item) return item;
-      if (!imageIds.has(item)) imageIds.set(item,++imageId);
-      return imageIds.get(item);
-    });
+  function travel(from, to) {
+    if (!from.length || drag) return;
+    to.push(snapshot());
+    state = from.pop();
+    sync();
+    queuePaint();
   }
-  function remember() {
-    if (restoring || drag) return;
-    const value = snapshot();
-    if (historyIndex >= 0 && signature(value) === signature(history[historyIndex])) return;
-    history.splice(historyIndex+1);
-    history.push(value);
-    if (history.length > 100) history.shift();
-    historyIndex = history.length-1;
-    syncHistory();
+  function change(callback) {
+    remember(snapshot());
+    callback();
+    sync();
+    queuePaint();
   }
-  function syncHistory() {
-    byId('undo').disabled = historyIndex <= 0;
-    byId('redo').disabled = historyIndex >= history.length-1;
-  }
-  function syncUI() {
-    for (const key of controls) {
-      if (key === 'zoom' || key === 'angle') continue;
-      const control = byId(key);
-      if (control.type === 'checkbox') control.checked = !!state[key];
-      else control.value = state[key];
-    }
-    Array.from(byId('layouts').children).forEach((button,index) => button.setAttribute('aria-pressed',String(Object.keys(Cover.layouts)[index] === state.layout)));
-    choosePanel(Math.min(active,state.panels.length-1));
-  }
-  function restore(offset) {
-    const index = historyIndex+offset;
-    if (index < 0 || index >= history.length) return;
-    ++request;
-    drag = undefined;
-    restoring = true;
-    historyIndex = index;
-    const saved = history[index];
-    Object.assign(state,saved.values);
-    saved.panels.forEach((panel,i) => { panelBank[i] = {...panel}; });
-    sampleMode = saved.sampleMode;
-    syncPanels(); syncUI(); repaint(); syncHistory();
-    restoring = false;
-  }
-  byId('undo').onclick = () => restore(-1);
-  byId('redo').onclick = () => restore(1);
-  document.addEventListener('keydown',event => {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z') {
-      event.preventDefault(); restore(event.shiftKey ? 1 : -1);
-    }
-  });
-  document.addEventListener('focusin',event => {
-    const id = event.target.id;
-    const step = event.target.closest('.export-bar') ? '3' :
-      ['pick','replace','samples','auto-fill','spread','zoom','angle','reset'].includes(id) || event.target.closest('#panels') || event.target === canvas ? '1' : '2';
-    document.querySelectorAll('[data-step]').forEach(item => {
-      if (item.dataset.step === step) item.setAttribute('aria-current','step');
-      else item.removeAttribute('aria-current');
-    });
-  });
-
-  function syncPanels() {
-    state.panels = panelBank.slice(0,Cover.layouts[state.layout].cells.length);
-  }
-
-  function applySampleCrops() {
-    const crops = Scenes.compositions[state.format].crops;
-    panelBank.forEach((panel,index) => {
-      [panel.x,panel.y,panel.zoom] = crops[index] || [0,0,1];
-    });
-  }
-  let active = 0;
-  let boxes = [];
-  let drag;
-  let frame;
-  let request = 0;
-  let singleUpload = false;
-
-  function status(message) {
-    byId('status').textContent = message;
-  }
-
-  function repaint() {
-    if (frame !== undefined) cancelAnimationFrame(frame);
+  function paint() {
     frame = undefined;
-    boxes = Cover.render(canvas,state);
-    byId('board').style.setProperty('--ratio',canvas.width/canvas.height);
-    byId('dimensions').textContent = canvas.width + ' × ' + canvas.height;
+    boxes = Cover.render(canvas, state);
+    $('board').style.setProperty('--ratio', canvas.width / canvas.height);
+    $('dimensions').textContent = canvas.width + ' × ' + canvas.height;
   }
-
   function queuePaint() {
-    remember();
-    if (frame === undefined) frame = requestAnimationFrame(repaint);
+    if (frame === undefined) frame = requestAnimationFrame(paint);
   }
-
-  function choosePanel(index) {
-    active = index;
-    const count = Cover.layouts[state.layout].cells.length;
-    const buttons = Array.from({length:count}, (_,i) => {
-      const button = document.createElement('button');
-      button.textContent = String(i+1);
-      button.setAttribute('aria-label','Panel ' + (i+1));
-      button.setAttribute('aria-pressed',String(i === index));
-      button.onclick = () => {
-        choosePanel(i);
-        byId('panels').children[i].focus();
-      };
-      return button;
+  function syncPanel() {
+    active = Math.min(active, count() - 1);
+    const panel = state.bank[active];
+    for (const key of ['zoom', 'angle']) $(key).value = panel[key];
+    captionInputs.forEach((input, i) => { input.value = panel.caption[i]; });
+    $('active-panel').textContent = 'Panel ' + (active + 1) + ' / ' + count();
+    [...$('panels').children].forEach((button, i) => {
+      button.hidden = i >= count();
+      button.setAttribute('aria-pressed', String(i === active));
     });
-    byId('panels').replaceChildren(...buttons);
-    byId('active-panel').textContent = 'Panel ' + (index+1) + ' / ' + count;
-    for (const key of ['zoom','angle']) byId(key).value = state.panels[index][key];
+    $('fill').disabled = !panel.image;
+    $('spread').disabled = !state.photos.length;
+  }
+  function sync() {
+    settings.forEach(key => {
+      const input = $(key);
+      if (input.type === 'checkbox') input.checked = state[key];
+      else input.value = state[key];
+    });
+    [...$('layouts').children].forEach(button => {
+      button.setAttribute('aria-pressed', String(button.dataset.layout === state.layout));
+    });
+    syncPanel();
+    updateHistory();
   }
 
   for (const [key, layout] of Object.entries(Cover.layouts)) {
-    const button = document.createElement('button');
-    const icon = document.createElement('span');
+    const button = document.createElement('button'), icon = document.createElement('span');
     icon.className = 'mini';
-    icon.setAttribute('aria-hidden','true');
-    for (const [x,y,w,h] of layout.cells) {
-      const pane = document.createElement('i');
-      Object.assign(pane.style,{left:x*100+'%',top:y*100+'%',width:w*100+'%',height:h*100+'%'});
-      icon.append(pane);
-    }
-    button.append(icon,layout.name);
-    button.setAttribute('aria-pressed',String(state.layout === key));
+    icon.setAttribute('aria-hidden', 'true');
+    button.dataset.layout = key;
+    layout.cells.forEach(([x, y, w, h]) => {
+      const tile = document.createElement('i');
+      Object.assign(tile.style, { left: x * 100 + '%', top: y * 100 + '%', width: w * 100 + '%', height: h * 100 + '%' });
+      icon.append(tile);
+    });
+    button.append(icon, layout.name);
     button.onclick = () => {
-      state.layout = key;
-      if (key === 'centre-title') {state.titlePos='centre';byId('titlePos').value=state.titlePos;}
-      syncPanels();
-      for (const option of byId('layouts').children) option.setAttribute('aria-pressed',String(option === button));
-      choosePanel(0);
-      queuePaint();
+      if (state.layout === key) return;
+      change(() => {
+        state.layout = key;
+        if (key === 'centre') state.titlePos = 'centre';
+        else if (state.titlePos === 'centre') state.titlePos = Scenes.compose(state.format).titlePos;
+      });
     };
-    byId('layouts').append(button);
+    $('layouts').append(button);
   }
+  state.bank.forEach((_, i) => {
+    const button = document.createElement('button');
+    button.textContent = i + 1;
+    button.setAttribute('aria-label', 'Panel ' + (i + 1));
+    button.onclick = () => { active = i; syncPanel(); };
+    $('panels').append(button);
+  });
+  for (const [key, grade] of Object.entries(Cover.grades)) $('grade').add(new Option(grade.name, key));
 
-  for (const key of controls) {
-    const control = byId(key);
-    const isCrop = key === 'zoom' || key === 'angle';
-    if (!isCrop) { if (control.type === 'checkbox') control.checked = !!state[key]; else control.value = state[key]; }
-    control.addEventListener('input', () => {
-      const target = isCrop ? state.panels[active] : state;
-      target[key] = control.type === 'checkbox' ? control.checked : control.type === 'range' ? Number(control.value) : control.value;
-      if (key === 'format') {
-        state.layout = Scenes.compositions[state.format].layout;
-        syncPanels();
-        if (sampleMode) applySampleCrops();
-        Array.from(byId('layouts').children).forEach((button,index) => button.setAttribute('aria-pressed',String(Object.keys(Cover.layouts)[index] === state.layout)));
-        choosePanel(0);
+  function bind(input, apply) {
+    let before;
+    input.addEventListener('input', () => {
+      if (!before) {
+        before = snapshot();
+        remember(before);
       }
+      const value = input.type === 'checkbox' ? input.checked : input.type === 'range' ? Number(input.value) : input.value;
+      apply(value);
       queuePaint();
     });
+    const end = () => { before = undefined; };
+    input.addEventListener('change', end);
+    input.addEventListener('blur', end);
+    input.addEventListener('art-history', end);
   }
-
-  function distribute(images, sample = false) {
-    sampleMode = sample;
-    for (const [index,panel] of panelBank.entries()) {
-      Object.assign(panel,neutralCrop(),{ image:images[index%images.length], faceSafe:sample && index%images.length < 2, fit:sample && index%images.length >= 2 ? 'contain' : 'cover' });
-    }
-    if (sample) applySampleCrops();
-    remember();
-    choosePanel(active);
-    repaint();
+  settings.forEach(key => bind($(key), value => {
+    if (key === 'format') {
+      Object.assign(state, Scenes.compose(value));
+      sync();
+    } else state[key] = value;
+  }));
+  ['zoom', 'angle'].forEach(key => bind($(key), value => { state.bank[active][key] = value; }));
+  captionInputs.forEach((input, i) => bind(input, value => { state.bank[active].caption[i] = value; }));
+  function historyAction(from, to) {
+    document.activeElement?.dispatchEvent(new Event('art-history'));
+    travel(from, to);
   }
+  $('undo').onclick = () => historyAction(undo, redo);
+  $('redo').onclick = () => historyAction(redo, undo);
+  window.addEventListener('keydown', event => {
+    if (!(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== 'z') return;
+    event.preventDefault();
+    if (event.shiftKey) historyAction(redo, undo);
+    else historyAction(undo, redo);
+  });
 
-  let sampleCache;
-  async function loadSamples() {
-    if (sampleCache) return sampleCache;
-    sampleCache = Promise.all(JSON.parse(byId('sample-photos').textContent).map(async source => {
-      const image = new Image();
-      const encoded = source.split('_').join('/').split('-').join('+');
-      image.src = 'data:image/webp;base64,' + encoded + '='.repeat((4 - encoded.length % 4) % 4);
-      await image.decode();
-      return image;
-    })).catch(error => { sampleCache = undefined; throw error; });
-    return sampleCache;
+  function assign(slot, photo) {
+    state.bank[slot] = { ...Scenes.crop(), image: photo.image, portrait: photo.portrait, focus: photo.focus, caption: [...photo.caption] };
   }
-
-  async function showSamples() {
+  function spread(photos) {
+    state.bank.forEach((_, i) => assign(i, photos[i % photos.length]));
+  }
+  function loadSource(source) {
+    const image = new Image();
+    image.src = source;
+    return image.decode().then(() => image);
+  }
+  async function samples(firstLoad = false) {
     const version = ++request;
     try {
-      const images = await loadSamples();
-      if (version !== request) return;
-      distribute(images,true);
-      status('Drop photos here · Drag a panel to reposition');
+      const payloads = JSON.parse($('sample-photos').textContent);
+      const images = await Promise.all(payloads.map(payload => {
+        const base = payload.replace(/-/g, '+').replace(/_/g, '/');
+        return loadSource('data:image/webp;base64,' + base.padEnd(Math.ceil(base.length / 4) * 4, '='));
+      }));
+      if (request !== version) return;
+      const apply = () => {
+        state.photos = images.map((image, i) => ({
+          image, portrait: i < 2, focus: Scenes.photoFocus[i], caption: Scenes.captions[i], name: sampleNames[i]
+        }));
+        spread(state.photos);
+        const defaults = Scenes.crops(state.format);
+        state.bank.forEach((panel, i) => {
+          if (i >= state.photos.length) state.bank[i].caption = [...Scenes.captions[i]];
+          if (defaults[i]) Object.assign(panel, defaults[i]);
+        });
+      };
+      if (firstLoad) { apply(); sync(); paint(); }
+      else change(apply);
+      status('Sample photos ready');
     } catch {
-      status('Sample photos could not load. You can add your own photos.');
+      if (request === version) status('Could not load the sample photos.');
     }
   }
-
-  async function importPhotos(files, destination = null) {
-    const inputs = Array.from(files).slice(0,destination === null ? state.panels.length : 1);
+  async function upload(files, slot) {
+    const inputs = [...files].slice(0, slot === null ? 6 : 1);
     if (!inputs.length) return;
     const version = ++request;
-    const results = await Promise.allSettled(inputs.map(file => createImageBitmap(file)));
-    const images = results.flatMap(result => result.status === 'fulfilled' ? [result.value] : []);
-    if (version !== request) {
-      images.forEach(image => image.close());
-      return;
-    }
-    if (!images.length) {
-      status('Could not open those photos. Try JPEG, PNG or WebP.');
-      return;
-    }
-    if (destination === null) distribute(images);
-    else {
-      const panel = state.panels[destination];
-      sampleMode = false;
-      Object.assign(panel,neutralCrop(),{image:images[0],faceSafe:false,fit:'cover'});
-      remember();
-      choosePanel(active);
-      repaint();
-    }
-    status(images.length === inputs.length ? 'Drag a panel to reposition its photo' : 'Some photos could not be opened');
+    const decoded = await Promise.allSettled(inputs.map(async (file, i) => {
+      const url = URL.createObjectURL(file);
+      try {
+        return { image: await loadSource(url), portrait: false, caption: Scenes.captions[i], name: file.name };
+      } finally { URL.revokeObjectURL(url); }
+    }));
+    if (version !== request) return;
+    const photos = decoded.flatMap(result => result.status === 'fulfilled' ? [result.value] : []);
+    if (!photos.length) { status('Could not open those photos.'); return; }
+    change(() => {
+      if (slot === null) {
+        state.photos = photos;
+        spread(photos);
+      } else {
+        const photo = { ...photos[0], caption: [...state.bank[slot].caption] };
+        state.photos = [photo, ...state.photos];
+        assign(slot, photo);
+      }
+    });
+    status(photos.length + ' photo' + (photos.length === 1 ? '' : 's') + ' added');
   }
-
-  function openPicker(onePanel) {
-    singleUpload = onePanel;
-    picker.multiple = !onePanel;
+  function openPicker(slot) {
+    replaceSlot = slot;
+    picker.multiple = slot === null;
     picker.click();
   }
-
-  byId('pick').onclick = () => openPicker(false);
-  byId('replace').onclick = () => openPicker(true);
-  byId('samples').onclick = showSamples;
-  const shuffled = items => {
-    const result = [...items];
-    for (let i=result.length-1;i>0;i--) {const j=Math.floor(Math.random()*(i+1));[result[i],result[j]]=[result[j],result[i]];}
-    return result;
-  };
-  byId('auto-fill').onclick = async () => {
-    const version = ++request;
-    try {
-      const samples = await loadSamples();
-      if (version !== request) return;
-      const used = new Set(state.panels.map(panel => panel.image).filter(Boolean));
-      const available = shuffled(samples.filter(image => !used.has(image)));
-      for (const panel of state.panels) {
-        if (!panel.image && available.length) {
-          const image = available.pop();
-          Object.assign(panel,neutralCrop(),{image,faceSafe:samples.indexOf(image)<2,fit:samples.indexOf(image)>=2?'contain':'cover'});
-        }
-      }
-      choosePanel(active); queuePaint(); status('Empty panels filled with unique sample photos');
-    } catch { status('Sample photos could not load.'); }
-  };
-  byId('spread').onclick = () => {
-    ++request;
-    const photos = [...new Set(panelBank.map(panel => panel.image).filter(Boolean))];
-    if (!photos.length) {status('Add photos first');return;}
-    const sources = photos.map(image => ({...panelBank.find(panel => panel.image === image)}));
-    panelBank.forEach((panel,i) => {
-      const source=sources[i%sources.length];
-      Object.assign(panel,neutralCrop(),{image:source.image,faceSafe:source.faceSafe,fit:source.fit});
-    });
-    sampleMode=false;choosePanel(active);queuePaint();status('Photos spread across all panels');
-  };
-  byId('surprise').onclick = () => {
-    const pick = values => values[Math.floor(Math.random()*values.length)];
-    state.layout=pick(Object.keys(Cover.layouts));
-    if (state.layout === 'centre-title') state.titlePos='centre';
-    state.preset=pick(Array.from(byId('preset').options,option => option.value));
-    const composition=pick(Object.values(Scenes.compositions));
-    state.title=composition.title;
-    state.tagline=pick([Scenes.initial.tagline,...Object.values(Scenes.compositions).map(item => item.subtitle.toUpperCase())]);
-    syncPanels();syncUI();queuePaint();
-  };
-  byId('reset').onclick = () => {
-    Object.assign(state.panels[active],neutralCrop());
-    choosePanel(active);
-    queuePaint();
-  };
+  $('pick').onclick = () => openPicker(null);
+  $('replace').onclick = () => openPicker(active);
   picker.onchange = () => {
-    importPhotos(picker.files,singleUpload ? active : null);
+    upload(picker.files, replaceSlot);
     picker.value = '';
   };
+  $('samples').onclick = () => samples();
+  $('reset').onclick = () => change(() => Object.assign(state.bank[active], Scenes.crop()));
+  $('fill').onclick = () => change(() => {
+    const source = state.bank[active];
+    state.bank = state.bank.map(() => ({ ...source, caption: [...source.caption] }));
+  });
+  $('spread').onclick = () => change(() => spread(state.photos));
+  $('surprise').onclick = () => change(() => {
+    function different(keys, current) {
+      const choices = keys.filter(key => key !== current);
+      return choices[Math.floor(Math.random() * choices.length)];
+    }
+    state.layout = different(Object.keys(Cover.layouts), state.layout);
+    state.grade = different(Object.keys(Cover.grades), state.grade);
+    state.titlePos = state.layout === 'centre' ? 'centre' : Scenes.compose(state.format).titlePos;
+  });
 
-  work.ondragover = event => {
-    event.preventDefault();
-    work.classList.add('drop-ready');
-  };
+  work.ondragover = event => { event.preventDefault(); work.classList.add('drop-ready'); };
   work.ondragleave = event => {
     if (!work.contains(event.relatedTarget)) work.classList.remove('drop-ready');
   };
   work.ondrop = event => {
     event.preventDefault();
     work.classList.remove('drop-ready');
-    importPhotos(event.dataTransfer.files);
+    upload(event.dataTransfer.files, null);
   };
-  window.addEventListener('dragover',event => event.preventDefault());
-  window.addEventListener('drop',event => event.preventDefault());
+  window.addEventListener('dragover', event => event.preventDefault());
+  window.addEventListener('drop', event => event.preventDefault());
 
-  function pointerOnPoster(event) {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x:(event.clientX-rect.left)*canvas.width/rect.width,
-      y:(event.clientY-rect.top)*canvas.height/rect.height
-    };
+  function point(event) {
+    const bounds = canvas.getBoundingClientRect();
+    return [(event.clientX - bounds.left) * canvas.width / bounds.width,
+      (event.clientY - bounds.top) * canvas.height / bounds.height];
   }
-
   if (!Scenes.coverOnly) {
     canvas.onpointerdown = event => {
       if (event.button !== 0 || drag) return;
-      const point = pointerOnPoster(event);
-      const index = Cover.hit(canvas,boxes,point.x,point.y);
+      const [x, y] = point(event);
+      const index = boxes.findIndex(box => x >= box.left && x <= box.left + box.width &&
+        y >= box.top && y <= box.top + box.height);
       if (index < 0) return;
-      choosePanel(index);
+      active = index;
+      syncPanel();
+      drag = { x, y, index, id: event.pointerId, before: snapshot() };
       canvas.setPointerCapture(event.pointerId);
-      drag = { point, index, id:event.pointerId };
     };
     canvas.onpointermove = event => {
       if (!drag || event.pointerId !== drag.id) return;
-      const point = pointerOnPoster(event);
-      const panel = state.panels[drag.index];
-      const box = boxes[drag.index];
-      if (!box) return;
-      panel.x = Math.max(-2,Math.min(2,panel.x+(point.x-drag.point.x)/box.width));
-      panel.y = Math.max(-2,Math.min(2,panel.y+(point.y-drag.point.y)/box.height));
-      drag.point = point;
+      const [x, y] = point(event), box = boxes[drag.index];
+      if (!box || (x === drag.x && y === drag.y)) return;
+      if (drag.before) {
+        remember(drag.before);
+        drag.before = null;
+      }
+      const panel = state.bank[drag.index];
+      panel.x = Math.max(-3, Math.min(3, panel.x + (x - drag.x) / box.width));
+      panel.y = Math.max(-3, Math.min(3, panel.y + (y - drag.y) / box.height));
+      Object.assign(drag, { x, y });
       queuePaint();
     };
-    canvas.onlostpointercapture = () => { drag = undefined; remember(); };
+    canvas.onlostpointercapture = () => { drag = null; };
   }
 
-  async function download(output) {
-    const name = 'sunset-cover-' + output.width + 'x' + output.height + '.png';
-    const blob = await new Promise(resolve => output.toBlob(resolve,'image/png'));
-    if (!blob) throw new Error('PNG could not be saved');
-    const link = document.createElement('a');
-    link.href=URL.createObjectURL(blob);link.download=name;link.click();
-    setTimeout(() => URL.revokeObjectURL(link.href),3000);
-  }
-  byId('export').onclick = async () => {
-    try {repaint();await download(canvas);status('PNG downloaded');}
-    catch {status('The PNG could not be saved. Try exporting again.');}
-  };
-  byId('export-all').onclick = async () => {
+  let exporting = false;
+  async function exportSizes(formats) {
+    if (exporting) return;
+    exporting = true;
+    $('export').disabled = $('export-all').disabled = true;
+    const original = snapshot();
+    const output = document.createElement('canvas');
     try {
-      const saved=snapshot();
-      for (const format of ['wide','tall','square']) {
-        const output=document.createElement('canvas');
-        Cover.render(output,{...saved.values,format,panels:saved.panels.slice(0,Cover.layouts[saved.values.layout].cells.length)});
-        await download(output);
+      await fonts;
+      for (const format of formats) {
+        const scene = format === original.format ? original : { ...original, ...Scenes.compose(format) };
+        Cover.render(output, scene);
+        const blob = await new Promise(resolve => output.toBlob(resolve, 'image/png'));
+        if (!blob) throw new Error('PNG unavailable');
+        const url = URL.createObjectURL(blob), link = document.createElement('a');
+        link.href = url;
+        link.download = 'sunset-cover-' + output.width + 'x' + output.height + '.png';
+        document.body.append(link);
+        link.click();
+        link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 3000);
       }
-      status('Three PNGs exported. Allow multiple downloads if your browser asks.');
-    } catch {status('Export failed. Try exporting again.');}
-  };
-
-  async function start() {
-    document.body.classList.toggle('shot-cover',Scenes.coverOnly);
-    choosePanel(0);
-    remember();
-    await Promise.all([document.fonts.load('32px Display'),document.fonts.load('16px Studio')]);
-    repaint();
-    await showSamples();
-    remember();
-    await Scenes.waitForPaint();
+      status(formats.length === 1 ? 'PNG ready' : 'All three PNGs ready');
+    } catch {
+      status('Could not finish saving the PNGs.');
+    } finally {
+      exporting = false;
+      $('export').disabled = $('export-all').disabled = false;
+    }
   }
-  start();
+  $('export').onclick = () => exportSizes([state.format]);
+  $('export-all').onclick = () => exportSizes(Object.keys(Cover.formats));
+
+  document.body.classList.toggle('shot-cover', Scenes.coverOnly);
+  sync();
+  const fonts = Promise.allSettled(['32px Display', '16px Studio', '60px "Great Vibes"'].map(font => document.fonts.load(font)));
+  fonts.then(async () => {
+    paint();
+    await samples(true);
+    await Scenes.waitForPaint();
+  });
 })();
