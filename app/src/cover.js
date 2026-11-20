@@ -193,7 +193,8 @@ const Cover = (() => {
 
   function title(ctx, state, w, h, u) {
     const wide = state.format === 'wide';
-    const baseline = h * (state.titlePos === 'centre' ? .58 : wide ? .82 : .825);
+    const isOver = state.titlePos === 'over';
+    const baseline = h * (state.titlePos === 'centre' ? .58 : isOver ? .82 : .825);
     const size = u * (wide ? .25 : .164) * state.size / 100;
     const scriptSize = u * (wide ? .091 : .079);
     const scriptOffset = u * (wide ? .055 : .046);
@@ -208,7 +209,7 @@ const Cover = (() => {
     ctx.textBaseline = 'alphabetic';
     ctx.lineJoin = 'round';
     ctx.font = size + 'px Display, sans-serif';
-    const word = state.title.trim().toUpperCase(), max = w * .85;
+    const word = state.title.trim().toUpperCase(), max = w * (isOver ? .73 : .85);
     if (word) {
       ctx.lineWidth = u * .023;
       ctx.strokeStyle = '#100d19';
