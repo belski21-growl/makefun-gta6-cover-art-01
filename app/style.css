@@ -94,3 +94,12 @@ canvas:active { cursor: grabbing; }
   .export-bar select, .export-bar button { padding: 5px; font-size: 10px; }
   .tools { padding: 0 9px; }
 }
+
+.history-actions, .steps { display:flex; gap:8px; align-items:center; }
+.steps { justify-content:center; padding:12px; color:var(--muted); border-bottom:1px solid var(--line); }
+.steps [aria-current=step] { color:var(--accent); font-weight:bold; }
+button:disabled { opacity:.4; cursor:default; }
+.photo-actions + .photo-actions { margin-top:8px; }
+.field select { width:100%; min-width:0; }
+.shot-cover .steps { display:none; }
+@media(max-width:1100px) { .masthead {height:auto;min-height:70px;flex-wrap:wrap;gap:10px;padding:12px;} .export-bar {flex-wrap:wrap;} }
